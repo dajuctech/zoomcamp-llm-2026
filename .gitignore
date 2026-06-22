@@ -1,0 +1,10 @@
+*.md
+
+!README.md
+!**/README.md
+
+.env
+.venv/
+.uv-cache/
+__pycache__/
+.ipynb_checkpoints/
