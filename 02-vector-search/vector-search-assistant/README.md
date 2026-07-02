@@ -1,33 +1,59 @@
 # Vector Search Assistant
 
-This project is a hands-on implementation of the vector search workflow from Module 2 of LLM Zoomcamp.
+Vector Search Assistant is a small retrieval project for answering LLM Zoomcamp course questions with semantic search and RAG.
 
-The goal is to understand how search improves when text is converted into embeddings, how those embeddings can be searched with different tools, and how vector search can be used inside a RAG application.
+It starts with the course FAQ data, turns each question and answer into an embedding, searches for the most relevant records, and uses the retrieved context to answer a user question. The project includes several retrieval backends so the same search problem can be compared across simple NumPy search, in-memory vector search, SQLite persistence, PostgreSQL with `pgvector`, ONNX embeddings, and hybrid retrieval.
 
-The project starts small with two sentence embeddings, then builds up to manual vector search, `minsearch`, SQLite persistence, PGVector, ONNX embeddings, and hybrid search.
+## What It Does
 
-## What This Project Achieves
+The assistant can:
 
-This project shows how to:
+- load FAQ documents from the course dataset
+- create embeddings with `sentence-transformers`
+- rank documents manually with NumPy dot products
+- search with `minsearch.VectorSearch`
+- use retrieved documents inside a RAG prompt
+- persist a vector index with SQLite
+- search embeddings stored in PostgreSQL using `pgvector`
+- run embeddings with a lightweight ONNX Runtime implementation
+- combine vector search and keyword search using Reciprocal Rank Fusion
 
-- Load the course FAQ dataset.
-- Convert questions and answers into embedding vectors.
-- Compare vectors with dot product / cosine similarity.
-- Search manually with NumPy.
-- Search with `minsearch.VectorSearch`.
-- Use vector search inside a RAG pipeline.
-- Save and reopen a vector index with SQLite.
-- Store and search embeddings in PostgreSQL with `pgvector`.
-- Replace `sentence-transformers` with a lighter ONNX embedder.
-- Combine keyword search and vector search with Reciprocal Rank Fusion.
+The main question the project demonstrates is:
 
-By the end, the project answers a course-related question by finding relevant context from the FAQ data and sending that context to an LLM.
+```text
+I just discovered the course. Can I still join?
+```
 
-## Project Files
+The expected answer is retrieved from the LLM Zoomcamp FAQ and then passed into a RAG flow.
+
+## Architecture
+
+```text
+FAQ data
+  -> document text
+  -> embeddings
+  -> vector index
+  -> search results
+  -> prompt context
+  -> LLM answer
+```
+
+For hybrid search, the retrieval path becomes:
+
+```text
+query
+  -> vector search results
+  -> keyword search results
+  -> Reciprocal Rank Fusion
+  -> final ranked results
+```
+
+## Project Structure
 
 ```text
 vector-search-assistant/
   README.md
+  project_notebook.ipynb
   ingest.py
   embeddings.py
   manual_vector_search.py
@@ -45,144 +71,67 @@ vector-search-assistant/
   faq_vectors2.db
 ```
 
-## File Guide
+## Files
 
-`ingest.py`
+`ingest.py` loads the FAQ data used by the search examples.
 
-Loads the FAQ dataset used by the course. The rest of the project depends on this file because every search method needs documents to search over.
+`embeddings.py` verifies that `SentenceTransformer("all-MiniLM-L6-v2")` can encode text and compare similar questions.
 
-`embeddings.py`
-
-Loads `SentenceTransformer("all-MiniLM-L6-v2")`, embeds two similar questions, and compares them with a dot product. This is the first check that embeddings are working.
-
-`manual_vector_search.py`
-
-Builds document embeddings for the FAQ dataset and searches by hand with NumPy:
-
-```text
-query -> query vector -> X.dot(query vector) -> top results
-```
-
-This makes the core idea of vector search visible before using a library.
-
-`minsearch_vector_search.py`
-
-Uses `minsearch.VectorSearch` to do vector search with filtering. The important improvement is filtering by course:
+`manual_vector_search.py` embeds the FAQ records, stores them in a NumPy matrix, and ranks documents with:
 
 ```python
-filter_dict={"course": "llm-zoomcamp"}
+scores = X.dot(v_query)
 ```
 
-This keeps results focused on the LLM Zoomcamp FAQ instead of returning similar answers from other courses.
+`minsearch_vector_search.py` replaces the manual ranking code with `minsearch.VectorSearch` and filters results to `llm-zoomcamp`.
 
-`rag_helper.py`
+`rag_helper.py` contains the reusable RAG helper: build context, build prompt, call the LLM, and return the answer.
 
-Provides the base RAG helper used in the course. It handles:
+`vector_rag.py` connects vector search to the RAG flow by overriding the search step and embedding the user query before retrieval.
 
-- building context from search results
-- building the prompt
-- calling the LLM
-- returning the answer
+`sqlite_vector_search.py` builds a persistent vector index with `sqlitesearch.VectorSearchIndex`.
 
-`vector_rag.py`
+`sqlite_reopen_search.py` opens the saved SQLite index and searches it without rebuilding all document embeddings.
 
-Uses vector search as the retrieval step in RAG. The key class is `RAGVector`, which overrides `search()` so a user query is embedded before searching.
+`pgvector_search.py` stores embeddings in PostgreSQL with the `pgvector` extension and queries them with cosine distance.
 
-`sqlite_vector_search.py`
+`download.py`, `embedder.py`, and `models/` support the ONNX Runtime embedding path.
 
-Builds a persistent vector search index with `sqlitesearch.VectorSearchIndex`.
+`onnx_embedder_demo.py` repeats the embedding and vector search workflow with the lightweight ONNX embedder.
 
-Unlike the in-memory `minsearch` example, this creates a local database:
+`hybrid_search.py` combines vector search and keyword search with Reciprocal Rank Fusion.
+
+`project_notebook.ipynb` is an interactive walkthrough of the same project files.
+
+## Setup
+
+Install dependencies from the repository root:
+
+```bash
+uv sync
+```
+
+The project uses Python 3.12 because the embedding stack is more stable there than on Python 3.14.
+
+The main dependencies used by this project are:
 
 ```text
-faq_vectors2.db
+sentence-transformers
+numpy
+tqdm
+minsearch
+sqlitesearch
+onnxruntime
+tokenizers
+gitsource
+openai
+python-dotenv
+psycopg[binary]
 ```
 
-`sqlite_reopen_search.py`
+## Running The Scripts
 
-Reopens the saved SQLite vector index and searches without rebuilding all document embeddings. This shows the production-style split between:
-
-```text
-ingestion time: embed documents and save index
-query time: embed only the user query and search
-```
-
-`pgvector_search.py`
-
-Stores embeddings in PostgreSQL using the `pgvector` extension. It demonstrates:
-
-- `CREATE EXTENSION IF NOT EXISTS vector`
-- `embedding vector(384)`
-- cosine distance with `<=>`
-- filtering with SQL
-- HNSW indexing
-- using PGVector inside a RAG class
-
-This is the production-style database option in the project.
-
-`download.py`
-
-Downloads the ONNX model files used by the lightweight embedder.
-
-`embedder.py`
-
-Provides the ONNX `Embedder` class. It gives a similar interface to `sentence-transformers`:
-
-```python
-embed.encode(text)
-embed.encode_batch(texts)
-```
-
-`models/`
-
-Stores the local ONNX model files:
-
-```text
-models/Xenova/all-MiniLM-L6-v2/
-  tokenizer.json
-  model.onnx
-```
-
-`onnx_embedder_demo.py`
-
-Repeats the embedding and manual vector search flow using the ONNX embedder instead of `sentence-transformers`.
-
-The output should be close to the earlier vector search results, but with a lighter runtime dependency.
-
-`hybrid_search.py`
-
-Combines vector search and keyword search.
-
-It uses:
-
-- `gitsource` to load lesson files
-- `chunk_documents` to split long pages
-- ONNX `Embedder` for vector search
-- `minsearch.Index` for keyword search
-- Reciprocal Rank Fusion to merge both ranked lists
-
-The key function is:
-
-```python
-def rrf(result_lists, k=60, num_results=5):
-    scores = {}
-    docs = {}
-
-    for results in result_lists:
-        for rank, doc in enumerate(results):
-            key = (doc["filename"], doc["start"])
-            scores[key] = scores.get(key, 0) + 1 / (k + rank)
-            docs[key] = doc
-
-    ranked = sorted(scores, key=scores.get, reverse=True)
-    return [docs[key] for key in ranked[:num_results]]
-```
-
-Hybrid search is useful because keyword search is strong with exact terms, while vector search is strong with meaning and paraphrases.
-
-## How To Run
-
-Run commands from the course root unless a section says otherwise:
+From the repository root:
 
 ```bash
 uv run python 02-vector-search/vector-search-assistant/embeddings.py
@@ -194,7 +143,7 @@ uv run python 02-vector-search/vector-search-assistant/sqlite_reopen_search.py
 uv run python 02-vector-search/vector-search-assistant/pgvector_search.py
 ```
 
-For the ONNX and hybrid search scripts, run from inside the project folder so the local `models/` folder is found correctly:
+For ONNX and hybrid search, run from the project folder so the local `models/` path resolves correctly:
 
 ```bash
 cd 02-vector-search/vector-search-assistant
@@ -202,11 +151,9 @@ uv run python onnx_embedder_demo.py
 uv run python hybrid_search.py
 ```
 
-## PGVector Setup
+## PGVector
 
-`pgvector_search.py` needs Docker and PostgreSQL with the `pgvector` extension.
-
-Start the container:
+`pgvector_search.py` needs a running PostgreSQL container with the `pgvector` extension:
 
 ```bash
 docker run -it \
@@ -231,51 +178,74 @@ Then run:
 uv run python 02-vector-search/vector-search-assistant/pgvector_search.py
 ```
 
-## Main Learning Flow
+The script creates the `vector` extension, stores 384-dimensional embeddings, runs similarity search with `<=>`, creates an HNSW index, and uses the PostgreSQL-backed search inside a RAG class.
 
-The project follows this learning order:
+## SQLite Index
+
+`sqlite_vector_search.py` creates or rebuilds:
 
 ```text
-1. Embed small text examples
-2. Embed the FAQ dataset
-3. Search manually with NumPy
-4. Use minsearch for vector search
-5. Add vector search to RAG
-6. Persist vectors with SQLite
-7. Reopen the saved SQLite index
-8. Store vectors in PostgreSQL with pgvector
-9. Use ONNX Runtime for lighter embeddings
-10. Combine keyword and vector search with RRF
+faq_vectors2.db
 ```
 
-## What To Pay Attention To
+`sqlite_reopen_search.py` reuses that database without re-embedding all FAQ documents.
 
-Embeddings are just arrays of numbers, but the numbers capture meaning.
+That separation matters because embedding every document is an ingestion-time job. At query time, the app only needs to embed the user question and search the saved index.
 
-Dot product works here because the embedding vectors are normalized, so it behaves like cosine similarity.
+## ONNX Runtime
 
-Manual NumPy search helps explain what vector databases do internally.
+The ONNX version uses the same embedding model family without loading the full PyTorch stack.
 
-Filtering matters because similar answers from the wrong course can rank highly.
+The local model files live under:
 
-SQLite and PGVector show why projects separate ingestion from querying.
+```text
+models/Xenova/all-MiniLM-L6-v2/
+  tokenizer.json
+  model.onnx
+```
 
-ONNX gives the same embedding workflow with less deployment overhead than PyTorch.
+`embedder.py` exposes:
 
-Hybrid search is useful because there is no single perfect search method.
+```python
+embed.encode(text)
+embed.encode_batch(texts)
+```
 
-## Current Status
+This keeps the rest of the search pipeline almost identical to the `sentence-transformers` examples.
 
-The project currently includes working examples for:
+## Hybrid Search
 
-- sentence embeddings
-- manual vector search
-- `minsearch` vector search
-- vector RAG
-- SQLite vector search
-- SQLite index reopening
-- PGVector search and RAG
-- ONNX embeddings
-- hybrid search with RRF
+`hybrid_search.py` compares semantic retrieval and keyword retrieval, then merges both result lists with Reciprocal Rank Fusion.
 
-The remaining useful improvement is to add a project notebook that walks through the same steps interactively.
+The fusion function ranks documents by their positions in each result list:
+
+```python
+def rrf(result_lists, k=60, num_results=5):
+    scores = {}
+    docs = {}
+
+    for results in result_lists:
+        for rank, doc in enumerate(results):
+            key = (doc["filename"], doc["start"])
+            scores[key] = scores.get(key, 0) + 1 / (k + rank)
+            docs[key] = doc
+
+    ranked = sorted(scores, key=scores.get, reverse=True)
+    return [docs[key] for key in ranked[:num_results]]
+```
+
+This is useful because vector search handles meaning and paraphrases, while keyword search handles exact terms more reliably.
+
+## Notes For Git
+
+The following files are generated locally and should normally stay out of Git:
+
+```text
+models/
+faq_vectors2.db
+__pycache__/
+*.pyc
+.env
+```
+
+The source files, README, and notebook are the important project artifacts to commit.
