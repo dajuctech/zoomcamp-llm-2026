@@ -31,9 +31,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp/kestra-wd:/tmp/kestra-wd
     environment:
-      SECRET_GEMINI_API_KEY: ${SECRET_GEMINI_API_KEY}
-      SECRET_TAVILY_API_KEY: ${SECRET_TAVILY_API_KEY}
-      SECRET_OPENAI_API_KEY: ${SECRET_OPENAI_API_KEY}
+      SECRET_GEMINI_API_KEY: "${SECRET_GEMINI_API_KEY}"
+      SECRET_TAVILY_API_KEY: "${SECRET_TAVILY_API_KEY}"
+      SECRET_OPENAI_API_KEY: "${SECRET_OPENAI_API_KEY}"
       KESTRA_CONFIGURATION: |
         datasources:
           postgres:
@@ -62,7 +62,7 @@ services:
             type: gemini
             gemini:
               model-name: gemini-2.5-flash
-              api-key: ${GEMINI_API_KEY}
+              api-key: "${GEMINI_API_KEY}"
     ports:
       - "8080:8080"
       - "8081:8081"

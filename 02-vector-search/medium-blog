@@ -1,0 +1,675 @@
+# Building a Vector Search Assistant: What I Learned from Module 2
+
+When I first started learning about Retrieval-Augmented Generation, search felt like the simple part. You ask a question, look up the closest matching documents, put those documents into a prompt, and send everything to the model.
+
+But Module 2 changed how I think about that search step.
+
+The module was focused on vector search, and the big idea was this: if we want an AI assistant to answer questions well, we need a better way to retrieve useful context. Keyword search can work, but it only sees words. Vector search helps the system search by meaning.
+
+To make that idea practical, I built a small Vector Search Assistant. The assistant uses course FAQ data, turns questions and answers into embeddings, searches for the most relevant records, and uses the results inside a RAG pipeline.
+
+Project code: [github.com/dajuctech/zoomcamp-llm-2026/tree/main/02-vector-search](https://github.com/dajuctech/zoomcamp-llm-2026/tree/main/02-vector-search/vector-search-assistant)
+
+This post is my beginner-friendly walkthrough of what I learned and what the project does.
+
+## The Problem: Keyword Search Is Useful, But Limited
+
+In a basic search system, the user types a question and the system looks for documents with matching words.
+
+For example:
+
+```text
+Can I still join the course?
+```
+
+A keyword search engine can match words like:
+
+```text
+join
+course
+still
+```
+
+That is useful. But it has a weakness.
+
+If a user asks:
+
+```text
+I just found out about the program, can I still sign up?
+```
+
+the meaning is almost the same, but the words are different. A pure keyword system may not rank the best result high enough because it is looking for exact words, not meaning.
+
+Vector search solves this by converting text into numbers that represent meaning.
+
+## What Embeddings Are
+
+An embedding is a list of numbers that represents text.
+
+In the project, I used:
+
+```python
+SentenceTransformer("all-MiniLM-L6-v2")
+```
+
+This model turns a sentence into a vector with 384 numbers.
+
+So a question like:
+
+```text
+I just discovered the course, can I still join?
+```
+
+becomes something like:
+
+```text
+[0.02, -0.13, 0.44, ...]
+```
+
+The exact numbers are not important to read by hand. What matters is that similar sentences produce similar vectors.
+
+That means these two questions should be close in vector space:
+
+```text
+I just discovered the course, can I still join?
+I just found out about the program, can I still enroll?
+```
+
+The model does not only match words. It understands that "join" and "enroll" are close in meaning in this context.
+
+## Comparing Text with Dot Product
+
+After text becomes vectors, we need a way to compare them.
+
+The module used dot product:
+
+```python
+score = v1.dot(v2)
+```
+
+Because the vectors are normalized, this behaves like cosine similarity.
+
+The idea is simple:
+
+- higher score means the texts are more similar
+- lower score means the texts are less similar
+
+In the first script, I embedded two similar course-registration questions and compared them. The output showed a positive similarity score, confirming that the model sees them as related.
+
+That small test was important because it proved the embedding model was working before using it on the full dataset.
+
+## Embedding the FAQ Dataset
+
+After testing embeddings on two questions, the next step was to embed the FAQ dataset.
+
+Each FAQ record has fields like:
+
+```text
+course
+section
+question
+answer
+```
+
+For search, I combined the question and answer:
+
+```python
+text = doc["question"] + " " + doc["answer"]
+```
+
+This gives the embedding model more context. If the user query is close to either the question or the answer, the document can still be retrieved.
+
+The dataset was embedded in batches:
+
+```python
+batch_size = 50
+vectors = []
+
+for i in range(0, len(texts), batch_size):
+    batch = texts[i:i + batch_size]
+    batch_vectors = model.encode(batch)
+    vectors.extend(batch_vectors)
+```
+
+Batching matters because embedding documents one by one is slower. With batching, the model processes multiple texts at once.
+
+After that, I converted the list of vectors into a NumPy matrix:
+
+```python
+X = np.array(vectors)
+```
+
+Each row in `X` is one document embedding.
+
+## Manual Vector Search with NumPy
+
+Before using a search library, the module showed how vector search works by hand.
+
+The steps were:
+
+```text
+embed the user query
+compare it with every document vector
+sort by similarity score
+return the top results
+```
+
+In code, the core search line was:
+
+```python
+scores = X.dot(v_query)
+```
+
+This compares the query vector with every document vector at once.
+
+Then I selected the best results:
+
+```python
+top5 = np.argsort(-scores)[:5]
+```
+
+This manual version helped me understand what vector databases are doing behind the scenes. A vector search engine is not magic. At the core, it compares a query vector against document vectors and ranks the closest matches.
+
+One thing I noticed immediately was that the search found semantically similar answers from different courses, not only LLM Zoomcamp. That was useful, but not always what we want.
+
+If a user is asking about LLM Zoomcamp, answers from Data Engineering or MLOps may be confusing.
+
+That led to the next important idea: filtering.
+
+## Vector Search with minsearch
+
+After the manual NumPy version, I used:
+
+```python
+from minsearch import VectorSearch
+```
+
+The `minsearch.VectorSearch` class gives a cleaner interface:
+
+```python
+vindex = VectorSearch(keyword_fields=["course"])
+vindex.fit(X, documents)
+```
+
+Then search looks like this:
+
+```python
+results = vindex.search(
+    query_vector,
+    filter_dict={"course": "llm-zoomcamp"},
+    num_results=5
+)
+```
+
+The important part is:
+
+```python
+filter_dict={"course": "llm-zoomcamp"}
+```
+
+This keeps the results inside the correct course.
+
+That small change made the assistant more useful. Instead of giving answers from other courses, it focused on the LLM Zoomcamp FAQ.
+
+## Adding Vector Search to RAG
+
+The next step was to use vector search inside a RAG pipeline.
+
+The basic RAG flow is:
+
+```text
+user question
+-> search
+-> build prompt with retrieved context
+-> send prompt to LLM
+-> return answer
+```
+
+The nice thing about RAG is that the search step can be replaced without changing the whole system.
+
+In the project, I used a base RAG helper class and created a vector version:
+
+```python
+class RAGVector(RAGBase):
+
+    def __init__(self, embedder, **kwargs):
+        super().__init__(**kwargs)
+        self.embedder = embedder
+
+    def search(self, query, num_results=5):
+        query_vector = self.embedder.encode(query)
+        filter_dict = {"course": self.course}
+
+        return self.index.search(
+            query_vector,
+            num_results=num_results,
+            filter_dict=filter_dict
+        )
+```
+
+The only real difference is that the query is embedded before search.
+
+This helped me see why modular design matters. If retrieval, prompt building, and LLM calling are separated, I can improve one part without rewriting everything.
+
+## Persisting Vectors with SQLite
+
+The `minsearch` version works well for experiments, but it rebuilds the index every time the script starts.
+
+That is fine for a small dataset. But in a real application, we do not want to embed all documents every time a user asks a question.
+
+So the next tool was:
+
+```python
+from sqlitesearch import VectorSearchIndex
+```
+
+The SQLite version stores the vector index in a database file:
+
+```python
+vs_index = VectorSearchIndex(
+    keyword_fields=["course"],
+    mode="ivf",
+    db_path="faq_vectors2.db"
+)
+```
+
+This introduced an important production idea:
+
+```text
+ingestion time: embed documents and save the index
+query time: embed only the user question and search
+```
+
+I also created a separate script to reopen the saved index without rebuilding it.
+
+That helped me understand why real RAG systems usually have at least two phases:
+
+- one process for preparing and indexing data
+- another process for answering user questions
+
+## PostgreSQL and pgvector
+
+SQLite is useful for small projects, but many production systems already use PostgreSQL.
+
+Module 2 introduced `pgvector`, a PostgreSQL extension for storing and searching vectors.
+
+With PGVector, embeddings are stored in a table:
+
+```sql
+CREATE TABLE documents (
+    id SERIAL PRIMARY KEY,
+    course TEXT,
+    section TEXT,
+    question TEXT,
+    answer TEXT,
+    embedding vector(384)
+)
+```
+
+The `vector(384)` column matches the embedding size from `all-MiniLM-L6-v2`.
+
+To search, PostgreSQL uses the vector distance operator:
+
+```sql
+ORDER BY embedding <=> %s::vector
+```
+
+I also created an HNSW index:
+
+```sql
+CREATE INDEX ON documents
+USING hnsw (embedding vector_cosine_ops)
+```
+
+This is where the project started to feel closer to a real application. PostgreSQL gives features like persistence, SQL filtering, transactions, and concurrent access.
+
+The lesson for me was that vector search can live inside tools teams already use. It does not always require a separate vector database.
+
+## ONNX Runtime for Lighter Embeddings
+
+The project first used `sentence-transformers`, which is convenient. But it brings in PyTorch and a large dependency stack.
+
+Module 2 also showed a lighter option: ONNX Runtime.
+
+The ONNX version used:
+
+```python
+from embedder import Embedder
+
+embed = Embedder()
+```
+
+Then encoding looked familiar:
+
+```python
+v = embed.encode(text)
+vectors = embed.encode_batch(texts)
+```
+
+This was useful because the rest of the search pipeline stayed almost the same.
+
+The main difference was the runtime. ONNX makes deployment lighter because it avoids pulling in the full PyTorch stack.
+
+That matters for small servers, serverless functions, and projects where startup time or package size matters.
+
+## Hybrid Search with RRF
+
+The final search idea was hybrid search.
+
+Vector search is good at meaning. Keyword search is good at exact terms.
+
+For example, vector search may understand a paraphrased question, but keyword search may be better when the user asks about a specific function, file name, or tool name.
+
+Hybrid search combines both.
+
+The module used Reciprocal Rank Fusion:
+
+```python
+def rrf(result_lists, k=60, num_results=5):
+    scores = {}
+    docs = {}
+
+    for results in result_lists:
+        for rank, doc in enumerate(results):
+            key = (doc["filename"], doc["start"])
+            scores[key] = scores.get(key, 0) + 1 / (k + rank)
+            docs[key] = doc
+
+    ranked = sorted(scores, key=scores.get, reverse=True)
+    return [docs[key] for key in ranked[:num_results]]
+```
+
+The important idea is that RRF does not compare raw scores from different search engines. Instead, it looks at rank position.
+
+If a document appears high in both vector search and keyword search, it receives a stronger final score.
+
+In the project, the hybrid search result showed why this is useful. A document that was not necessarily first in either individual search could still become the best final result because both search methods agreed it was relevant.
+
+## What I Built
+
+The project lives in the Module 2 folder of my LLM Zoomcamp repository:
+
+```text
+02-vector-search/vector-search-assistant/
+```
+
+GitHub link:
+
+```text
+https://github.com/dajuctech/zoomcamp-llm-2026/tree/main/02-vector-search
+```
+
+The final project includes these files:
+
+```text
+ingest.py
+embeddings.py
+manual_vector_search.py
+minsearch_vector_search.py
+vector_rag.py
+sqlite_vector_search.py
+sqlite_reopen_search.py
+pgvector_search.py
+onnx_embedder_demo.py
+hybrid_search.py
+project_notebook.ipynb
+README.md
+```
+
+Each file focuses on one part of the workflow.
+
+The notebook ties everything together and makes it easier to run each step interactively.
+
+## The Code That Connects Everything
+
+The project is split into small files because each file teaches one part of vector search.
+
+The data starts in `ingest.py`, which loads the FAQ documents. Once the documents are loaded, I combine each question and answer before embedding:
+
+```python
+texts = []
+
+for doc in documents:
+    text = doc["question"] + " " + doc["answer"]
+    texts.append(text)
+```
+
+That small step matters because a user query might match the question, the answer, or both.
+
+In `embeddings.py`, I first checked that the embedding model worked:
+
+```python
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("all-MiniLM-L6-v2")
+
+q1 = "I just discovered the course, can I still join?"
+q2 = "I just found out about the program, can I still enroll?"
+
+v1 = model.encode(q1)
+v2 = model.encode(q2)
+
+print(v1.shape)
+print(v1.dot(v2))
+```
+
+The shape was:
+
+```text
+(384,)
+```
+
+That confirmed the model was creating 384-dimensional vectors.
+
+In `manual_vector_search.py`, I used NumPy to search without a vector database:
+
+```python
+X = np.array(vectors)
+
+query = "Can I still join the course after the start date?"
+v_query = model.encode(query)
+
+scores = X.dot(v_query)
+
+top5 = np.argsort(-scores)[:5]
+```
+
+This is the simplest form of vector search. The query is embedded, compared with every document, and the highest-scoring documents are returned.
+
+In `minsearch_vector_search.py`, I moved from manual search to `minsearch`:
+
+```python
+from minsearch import VectorSearch
+
+vindex = VectorSearch(keyword_fields=["course"])
+vindex.fit(X, documents)
+
+results = vindex.search(
+    query_vector,
+    filter_dict={"course": "llm-zoomcamp"},
+    num_results=5,
+)
+```
+
+The important improvement is the course filter. Without it, the search can return similar answers from other courses. With the filter, the assistant stays focused on LLM Zoomcamp.
+
+In `vector_rag.py`, I plugged vector search into the RAG flow:
+
+```python
+class RAGVector(RAGBase):
+
+    def __init__(self, embedder, **kwargs):
+        super().__init__(**kwargs)
+        self.embedder = embedder
+
+    def search(self, query, num_results=5):
+        query_vector = self.embedder.encode(query)
+        filter_dict = {"course": self.course}
+
+        return self.index.search(
+            query_vector,
+            num_results=num_results,
+            filter_dict=filter_dict
+        )
+```
+
+That class keeps the rest of RAG unchanged. The only difference is that the search method now embeds the query before retrieving context.
+
+In `sqlite_vector_search.py`, I saved the vector index to SQLite:
+
+```python
+vs_index = VectorSearchIndex(
+    keyword_fields=["course"],
+    mode="ivf",
+    db_path="02-vector-search/vector-search-assistant/faq_vectors2.db"
+)
+
+vs_index.clear()
+vs_index.fit(vectors, documents)
+```
+
+I added `clear()` so the script can be rerun without failing when the database already has documents.
+
+Then `sqlite_reopen_search.py` reuses the same database:
+
+```python
+vs_index = VectorSearchIndex(
+    keyword_fields=["course"],
+    mode="ivf",
+    db_path="02-vector-search/vector-search-assistant/faq_vectors2.db"
+)
+```
+
+That showed the difference between building an index and querying an existing index.
+
+In `pgvector_search.py`, I stored embeddings in PostgreSQL:
+
+```python
+conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+
+conn.execute("""
+    CREATE TABLE documents (
+        id SERIAL PRIMARY KEY,
+        course TEXT,
+        section TEXT,
+        question TEXT,
+        answer TEXT,
+        embedding vector(384)
+    )
+""")
+```
+
+Then I searched with cosine distance:
+
+```python
+results = conn.execute(
+    """
+    SELECT course, question, answer,
+           1 - (embedding <=> %s::vector) AS similarity
+    FROM documents
+    WHERE course = %s
+    ORDER BY embedding <=> %s::vector
+    LIMIT 5
+    """,
+    (query_str, "llm-zoomcamp", query_str)
+).fetchall()
+```
+
+This made vector search feel closer to a production database workflow.
+
+In `onnx_embedder_demo.py`, I replaced `sentence-transformers` with the ONNX embedder:
+
+```python
+from embedder import Embedder
+
+embed = Embedder()
+
+v1 = embed.encode(q1)
+batch_vectors = embed.encode_batch(batch)
+```
+
+The search logic stayed almost the same, but the embedding runtime became lighter.
+
+Finally, in `hybrid_search.py`, I combined vector search and keyword search:
+
+```python
+vector_results = vindex.search(
+    query_vector,
+    num_results=5
+)
+
+text_results = text_index.search(
+    query,
+    boost_dict={"content": 1.0},
+    num_results=5
+)
+
+results = rrf([vector_results, text_results])
+```
+
+The `rrf` function merges the two ranked lists:
+
+```python
+def rrf(result_lists, k=60, num_results=5):
+    scores = {}
+    docs = {}
+
+    for results in result_lists:
+        for rank, doc in enumerate(results):
+            key = (doc["filename"], doc["start"])
+            scores[key] = scores.get(key, 0) + 1 / (k + rank)
+            docs[key] = doc
+
+    ranked = sorted(scores, key=scores.get, reverse=True)
+    return [docs[key] for key in ranked[:num_results]]
+```
+
+This final step helped me understand why many real search systems are hybrid. Vector search handles meaning. Keyword search handles exact words. RRF gives a practical way to use both.
+
+## Key Lessons
+
+The biggest lesson from Module 2 is that retrieval quality matters.
+
+An LLM can only answer well if it receives the right context. If search retrieves weak or unrelated documents, the final answer will suffer.
+
+Here are the ideas that stood out most to me:
+
+Embeddings turn text into meaning-based vectors.
+
+Dot product can rank documents by similarity when vectors are normalized.
+
+Manual vector search is useful because it explains the basic math.
+
+Filtering is important because the most similar document is not always from the right course or category.
+
+RAG becomes easier to improve when search, prompt building, and LLM calls are separate.
+
+Persistent indexes matter because document embeddings should not be rebuilt on every app start.
+
+PGVector is useful when vector search needs to live inside a production database.
+
+ONNX Runtime can make embedding systems lighter.
+
+Hybrid search is often stronger than choosing only keyword search or only vector search.
+
+## Final Thoughts
+
+Before this module, I understood RAG mostly as a prompt-building pattern. Now I see retrieval as its own serious part of the system.
+
+The assistant I built is small, but it touches the main pieces used in larger RAG applications:
+
+```text
+data loading
+embedding
+indexing
+filtering
+retrieval
+prompt construction
+LLM response generation
+storage
+hybrid ranking
+```
+
+That makes vector search feel less abstract. It is not just a concept anymore. It is a pipeline I can build, test, swap, and improve.
+
+And that is the real value of the module: it shows that better AI answers often start with better search.
