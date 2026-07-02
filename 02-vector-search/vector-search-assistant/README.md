@@ -52,7 +52,6 @@ query
 
 ```text
 vector-search-assistant/
-  README.md
   project_notebook.ipynb
   ingest.py
   embeddings.py
@@ -248,4 +247,3 @@ __pycache__/
 .env
 ```
 
-The source files, README, and notebook are the important project artifacts to commit.
