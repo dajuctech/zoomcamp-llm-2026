@@ -90,7 +90,7 @@ evaluation-lab/
 Run commands from the project root:
 
 ```bash
-cd "/Users/daniel/Documents/Projects/AI  Engineering Tools/datatalks/llm/zoomcamp-llm-2026"
+cd zoomcamp-llm-2026
 ```
 
 Install dependencies with `uv`:
