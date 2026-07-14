@@ -1,5 +1,7 @@
 # LLM Evaluation Lab
 
+![LLM Evaluation Pipeline](images/llm-evaluation-pipeline.png)
+
 This project follows Module 4 of LLM Zoomcamp.
 
 The goal is to evaluate the systems built in the earlier modules:
