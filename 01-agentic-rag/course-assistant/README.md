@@ -392,16 +392,6 @@ Then run files with:
 uv run python 01-agentic-rag/course-assistant/search_engine.py
 ```
 
-### Wrong `gitsource` API
-
-Error:
-
-```text
-TypeError: GithubRepositoryDataReader.__init__() got an unexpected keyword argument 'org'
-```
-
-For this project, use the FAQ dataset code with `requests`, not `gitsource`.
-
 ### Running Python From The Wrong Folder
 
 Wrong:

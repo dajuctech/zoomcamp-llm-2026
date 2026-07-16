@@ -1,0 +1,18 @@
+apiVersion: 1
+
+datasources:
+  - name: course-assistant-postgres
+    uid: course_assistant_postgres
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: course_assistant
+    user: user
+    secureJsonData:
+      password: password
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1700
+      timescaledb: false
+    isDefault: true
+    editable: true
