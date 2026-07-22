@@ -1,4 +1,5 @@
 *.md
+*.pdf
 
 !README.md
 !**/README.md
@@ -27,3 +28,4 @@ faq_vectors2.db
 *.sqlite
 *.sqlite3
 *.db
+*.pdf
