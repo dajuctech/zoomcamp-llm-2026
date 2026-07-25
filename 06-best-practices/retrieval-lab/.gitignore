@@ -1,0 +1,37 @@
+# Local environment files
+.env
+.env.*
+!.env.example
+.venv/
+.uv-cache/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter local files
+.ipynb_checkpoints/
+
+# macOS files
+.DS_Store
+
+# Local databases and generated storage
+*.db
+*.sqlite
+*.sqlite3
+
+# Local model/cache folders
+models/
+.cache/
+
+# Docker/Elasticsearch local volumes
+elasticsearch-data/
+esdata/
+.volumes/
+
+# Keep public project files visible
+!README.md
+!reports/
+!reports/retrieval-results.md
