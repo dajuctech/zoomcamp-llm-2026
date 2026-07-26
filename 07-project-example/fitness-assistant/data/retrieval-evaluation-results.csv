@@ -1,0 +1,4 @@
+run,hit_rate,mrr
+baseline,1.0,0.9403333333333335
+tuned_validation,1.0,0.7240816326530612
+tuned_test,1.0,0.9027777777777778
