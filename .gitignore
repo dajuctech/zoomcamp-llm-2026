@@ -29,4 +29,5 @@ faq_vectors2.db
 *.sqlite
 *.sqlite3
 *.db
-*.pdf
+*.db-shm
+*.db-wal
