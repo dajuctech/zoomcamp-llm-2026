@@ -1,0 +1,11 @@
+.dlt/pipelines/
+.dlt/secrets.toml
+*.duckdb
+*.duckdb.wal
+*.db
+*.sqlite
+*.sqlite3
+__pycache__/
+.marimo/
+data/
+logs/

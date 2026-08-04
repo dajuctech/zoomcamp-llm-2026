@@ -1,68 +1,144 @@
-# Module 8 Homework - Logfire and dlt
+# Module 8: dlt Agent Logs Pipeline And Dashboard
 
-This homework uses the course Python environment from the project root:
+This module follows the LLM Zoomcamp dlt workshop.
 
-```text
-zoomcamp-llm-2026/.venv
-zoomcamp-llm-2026/pyproject.toml
-zoomcamp-llm-2026/uv.lock
-```
+The folder name says `08-workshops-dbt`, but this project is about `dlt`, not dbt.
 
-The homework secrets stay in this folder:
+## Project Goal
+
+Build a small data workflow for coding-agent logs:
 
 ```text
-08-workshops-dbt/homework-logfire/.env
+local JSONL logs
+-> dlt filesystem pipeline
+-> DuckDB
+-> marimo dashboard
+
+hosted REST API traces
+-> dlt REST API pipeline
+-> dltHub Platform playground destination
+-> deployed dashboard
+-> scheduled runs
 ```
 
-Do not commit `.env`.
-
-## 1. Add Keys
-
-Fill in `.env`:
+## Project Files
 
 ```text
-OPENAI_API_KEY=...
-LOGFIRE_TOKEN=...
-LOGFIRE_READ_TOKEN=...
+08-workshops-dbt/
+├── code/
+│   ├── filesystem_pipeline.py
+│   ├── claude_logs_dashboard.py
+│   ├── rest_api_pipeline.py
+│   └── agent_traces_dashboard.py
+├── __deployment__.py
+├── README.md
+└── homework-logfire/
 ```
 
-## 2. Run The Agent
+The homework folder is separate from the workshop project.
+
+## Environment
+
+Use the course-level Python environment from the repo root:
 
 ```bash
-cd zoomcamp-llm-2026
 source .venv/bin/activate
-
-cd 08-workshops-dbt/homework-logfire
-uv run python main.py
 ```
 
-The query in `main.py` is:
+Install missing workshop packages from the course root:
+
+```bash
+uv add "dlt[duckdb,hub]" marimo altair deltalake
+```
+
+Do not create a nested `uv` project inside this module.
+
+## 1. Run The Local Filesystem Pipeline
+
+The local pipeline reads JSONL coding-agent logs and loads them into DuckDB.
+
+Default log folder:
 
 ```text
-How do I run Ollama locally?
+~/.claude/projects
 ```
 
-After running, open Logfire and count the spans for this trace.
+Run:
 
-## 3. Build The dlt Pipeline
-
-Use this prompt with the coding agent:
-
-```text
-Using the dltHub Logfire source context at https://dlthub.com/context/source/logfire,
-build a dlt pipeline that reads traces from my Pydantic Logfire project
-and loads them into DuckDB with dataset/schema name agent_traces.
-
-Use the existing course uv environment from the zoomcamp-llm-2026 project root.
-Use the Logfire credentials from 08-workshops-dbt/homework-logfire/.env.
-Do not create a new uv project inside homework-logfire.
-Do not expose or print my tokens.
+```bash
+uv run python code/filesystem_pipeline.py
 ```
 
-## 4. Answer The Questions
+If your logs are somewhere else:
 
-Use `home_work.md` to record:
+```bash
+uv run python code/filesystem_pipeline.py --bucket-url path/to/jsonl/logs
+```
 
-- span count
-- dlt table count
-- input token range
+Inspect the local dlt output:
+
+```bash
+uv run dlthub local show
+```
+
+## 2. Run The Local marimo Dashboard
+
+```bash
+uv run marimo edit code/claude_logs_dashboard.py
+```
+
+This dashboard attaches to the local `agent_logs` pipeline and queries the DuckDB dataset.
+
+## 3. Run The REST API Pipeline
+
+The REST API pipeline uses the hosted fake Claude Code traces API from the workshop.
+
+Sample run:
+
+```bash
+uv run python code/rest_api_pipeline.py
+```
+
+Full run:
+
+```bash
+uv run python code/rest_api_pipeline.py --full
+```
+
+The sample run loads one page. The full run removes the offset cap.
+
+## 4. Deploy To dltHub Platform
+
+Log in and connect a workspace:
+
+```bash
+uv run dlthub login
+uv run dlthub workspace connect
+uv run dlthub show
+```
+
+Deploy and run:
+
+```bash
+uv run dlthub deploy
+uv run dlthub run
+```
+
+Publish the dashboard:
+
+```bash
+uv run dlthub job publish agent_traces_dashboard
+```
+
+List jobs:
+
+```bash
+uv run dlthub job list
+```
+
+## Notes
+
+- `dev_mode=True` and `write_disposition="replace"` are useful during development.
+- For production-style loading, remove `dev_mode`, use `merge`, and add an incremental cursor.
+- The REST API pipeline can use `index` as the incremental cursor.
+- Do not commit `.env`, DuckDB files, dlt pipeline state, or credentials.
