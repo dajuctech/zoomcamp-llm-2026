@@ -1,8 +1,8 @@
 # LLM Zoomcamp 2026 Learning Repository
 
-This repository contains my learning notes, labs, homework files, and course-aligned projects from the DataTalksClub LLM Zoomcamp 2026.
+This is my working repository for DataTalksClub LLM Zoomcamp 2026. I use it to keep my notes, notebooks, homework files, and the projects I build while going through the course.
 
-The work follows the course flow closely: RAG, vector search, orchestration, evaluation, monitoring, retrieval best practices, dlt pipelines, and the final capstone project reference.
+Most folders match the course modules, so it is easy to go back to a topic and see the files for that part.
 
 ## Course Links
 
@@ -99,9 +99,3 @@ The final capstone project was built as a team project under a separate GitHub o
 - Capstone project: https://github.com/AI-Precision-Medicine-Zoomcamp/therapeutic-strategy-assistant
 
 The `09-capstone-project` folder in this repository keeps the course-side reference and documentation links.
-
-## Learning Approach
-
-The code and project structure are intentionally close to the course modules. When a tool or pattern appears in a project, it is used because it was taught in the course or clearly documented as a project-specific choice.
-
-This keeps the repository useful as a study reference and as a step-by-step record of the LLM Zoomcamp learning path.
