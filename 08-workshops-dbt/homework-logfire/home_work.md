@@ -4,16 +4,16 @@
 
 Question: How many spans does the trace produce?
 
-Answer: TODO
+Answer: 5
 
 ## Q2
 
 Question: How many tables did dlt create in the `agent_traces` schema?
 
-Answer: TODO
+Answer: 24
 
 ## Q3
 
 Question: What is the range of total input token usage for the agent run?
 
-Answer: TODO
+Answer: 1500 - 5000
