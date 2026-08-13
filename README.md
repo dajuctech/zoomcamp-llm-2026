@@ -1,16 +1,16 @@
-# LLM Zoomcamp 2026 Learning Repository
+# LLM Zoomcamp 2026
 
-This is my working repository for DataTalksClub LLM Zoomcamp 2026. I use it to keep my notes, notebooks, homework files, and the projects I build while going through the course.
+This repository is my workspace for DataTalksClub LLM Zoomcamp 2026.
 
-Most folders match the course modules, so it is easy to go back to a topic and see the files for that part.
+Each folder follows the course order. Inside the folders, I keep the notes, notebooks, homework files, and projects for that module, so it is easier to review the course step by step.
 
 ## Course Links
 
 - Course repository: https://github.com/DataTalksClub/llm-zoomcamp
 - Course docs: https://datatalks.club/docs/courses/llm-zoomcamp/
-- My course repository: https://github.com/dajuctech/zoomcamp-llm-2026
+- This repository: https://github.com/dajuctech/zoomcamp-llm-2026
 
-## Repository Structure
+## Modules
 
 | Module | Folder | What It Covers |
 |---|---|---|
@@ -24,7 +24,7 @@ Most folders match the course modules, so it is easy to go back to a topic and s
 | 08 | `08-workshops-dbt` | dlt workshop: JSONL agent logs, filesystem pipelines, DuckDB, marimo dashboards, REST API ingestion, dltHub deployment, and scheduling. |
 | 09 | `09-capstone-project` | Capstone project reference and links to the team therapeutic strategy assistant project. |
 
-## Project Highlights
+## Main Project Folders
 
 - `01-agentic-rag/course-assistant`: course assistant based on RAG and agentic concepts.
 - `02-vector-search/vector-search-assistant`: vector search assistant project.
@@ -35,7 +35,7 @@ Most folders match the course modules, so it is easy to go back to a topic and s
 - `08-workshops-dbt`: dlt agent logs pipeline and dashboard workshop.
 - `09-capstone-project`: capstone reference for the therapeutic strategy assistant.
 
-## Environment
+## Setup
 
 The repository uses one shared Python environment from the repository root.
 
@@ -46,17 +46,17 @@ source .venv/bin/activate
 
 Secrets are kept in a local `.env` file and are not committed.
 
-Example:
+Example `.env` format:
 
 ```text
 OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-Each module may also include its own `README.md` with more specific setup and run instructions.
+Some modules have their own `README.md` files with extra setup and run instructions.
 
 ## Common Commands
 
-Install or sync dependencies:
+Install or sync dependencies from the root:
 
 ```bash
 uv sync
@@ -71,7 +71,7 @@ uv run python script.py
 Run notebooks from VS Code or Jupyter using the project virtual environment:
 
 ```text
-.venv
+Python: .venv
 ```
 
 Run Docker-based module projects from the module project folder:
@@ -80,22 +80,22 @@ Run Docker-based module projects from the module project folder:
 docker compose up -d
 ```
 
-## Privacy And Git Hygiene
+## What Is Kept Out Of Git
 
-The repository is configured to avoid publishing local or sensitive files:
+The repo ignores local files that should not be public:
 
 - `.env` files are ignored.
 - `.venv` and `.uv-cache` are ignored.
 - Python cache files are ignored.
 - SQLite, DuckDB, and sidecar database files are ignored.
-- Personal planning files such as `prd.md` and `practice.md` are ignored unless intentionally allowed.
+- Personal planning files such as `prd.md` and `practice.md` are ignored.
 - Public module `README.md` files are tracked.
 
 ## Capstone Project
 
-The final capstone project was built as a team project under a separate GitHub organization.
+The final capstone project was built with a team under a separate GitHub organization.
 
 - Team organization: https://github.com/AI-Precision-Medicine-Zoomcamp
 - Capstone project: https://github.com/AI-Precision-Medicine-Zoomcamp/therapeutic-strategy-assistant
 
-The `09-capstone-project` folder in this repository keeps the course-side reference and documentation links.
+The `09-capstone-project` folder keeps the course-side reference and documentation links.
